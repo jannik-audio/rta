@@ -115,7 +115,7 @@ function insets(){
   if(land&&a===270)L='14px';
   st.setProperty('--pl',L);st.setProperty('--pr',R);
 }
-const ML=38,MB=20,MT=8;
+const ML=38,MB=20,MT=8,SML=0;
 function ticks(){return[20,50,100,200,500,1000,2000,5000,10000,20000]}
 const tl=f=>f>=1000?f/1000+'k':f;
 function tickLabels(g,xs,W,y,k){
@@ -126,7 +126,7 @@ function tickLabels(g,xs,W,y,k){
   out.forEach(o=>g.fillText(o[0],o[1],y));
 }
 function drawGrid(){
-  const W=gc.width,H=gc.height,k=dpr,m=ML*k,pw=W-m;gx.clearRect(0,0,W,H);
+  const W=gc.width,H=gc.height,k=dpr,m=SML*k,pw=W-m;gx.clearRect(0,0,W,H);
   gx.lineWidth=1;gx.strokeStyle='rgba(255,255,255,.14)';gx.fillStyle='rgba(255,255,255,.7)';gx.font=11*k+'px Barlow,sans-serif';
   const xs=ticks().map(f=>({f,x:m+px(f,pw)}));
   xs.forEach(t=>{gx.beginPath();gx.moveTo(t.x,0);gx.lineTo(t.x,H);gx.stroke()});
@@ -134,7 +134,7 @@ function drawGrid(){
   gx.fillText('Spektrogramm (neu oben)',m+6*k,14*k);
 }
 function mapX(){
-  if(!binHz)return;const m=ML*dpr,pw=sc.width-m;x0=[];x1=[];
+  if(!binHz)return;const m=SML*dpr,pw=sc.width-m;x0=[];x1=[];
   for(let x=0;x<sc.width;x++){const f0=FMIN*Math.exp(Math.max(0,x-m)/pw*LR),f1=FMIN*Math.exp(Math.max(0,x-m+1)/pw*LR);
     const a=Math.min(Math.round(f0/binHz),fb.length-1);x0[x]=a;x1[x]=Math.max(a,Math.min(Math.round(f1/binHz),fb.length-1))}
 }
@@ -209,7 +209,7 @@ function drawRta(){
 function drawSpec(){
   const W=sc.width,H=sc.height;sx.drawImage(sc,0,0,W,H-1,0,1,W,H-1);
   const row=sx.createImageData(W,1),o=row.data;
-  for(let x=0;x<W;x++){if(x<ML*dpr){o[x*4]=5;o[x*4+1]=7;o[x*4+2]=15;o[x*4+3]=255;continue}let v=-200;for(let i=x0[x];i<=x1[x];i++)if(fb[i]>v)v=fb[i];
+  for(let x=0;x<W;x++){if(x<SML*dpr){o[x*4]=5;o[x*4+1]=7;o[x*4+2]=15;o[x*4+3]=255;continue}let v=-200;for(let i=x0[x];i<=x1[x];i++)if(fb[i]>v)v=fb[i];
     const k=Math.max(0,Math.min(255,Math.round((v+CORR-DMIN)/(80)*255)))*4;o[x*4]=lut[k];o[x*4+1]=lut[k+1];o[x*4+2]=lut[k+2];o[x*4+3]=255}
   sx.putImageData(row,0,0);
 }
