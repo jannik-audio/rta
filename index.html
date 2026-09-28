@@ -36,6 +36,16 @@ html,body{max-width:100%;overflow-x:hidden}.main>*{min-width:0}select{max-width:
 canvas{display:block;width:100%}
 #msg{color:var(--dim);margin:10px 2px;font-size:13px;min-height:1.4em}
 h2{font:500 14px Barlow,sans-serif;color:var(--dim);margin:14px 2px 6px}
+
+:root{--pl:max(14px,env(safe-area-inset-left,0px));--pr:max(14px,env(safe-area-inset-right,0px))}
+body{padding-left:var(--pl);padding-right:var(--pr);display:flex;flex-direction:column;min-height:100vh;min-height:calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
+.main{flex:1 0 auto;grid-template-rows:1fr}
+.main.all{grid-template-rows:1.4fr 1fr}
+.plot{min-height:200px}
+.plot canvas{position:absolute;left:0;top:0;width:100%;height:100%}
+.spl{align-self:start}
+@media(max-width:760px){.main,.main.all{grid-template-rows:none;grid-auto-rows:auto}.plot{min-height:240px}.main.one{grid-template-rows:1fr}}
+@media(max-height:520px){.big{font-size:52px}.sub{margin-top:8px;gap:4px}.sub b{font-size:20px}.sub span{font-size:12px}.spl{padding:8px 10px}.spl .bar{margin:8px 0 0!important}.bar{gap:6px;margin-bottom:8px}button,select{min-height:34px;padding:4px 10px;font-size:14px}.plot{min-height:150px}body{padding-top:6px;padding-bottom:6px}}
 </style>
 </head>
 <body>
@@ -81,36 +91,51 @@ const lut=(()=>{const c=document.createElement('canvas');c.width=256;c.height=1;
 [[0,'#05070f'],[.25,'#2b1a6b'],[.5,'#b0306a'],[.75,'#f59e0b'],[1,'#fff6d6']].forEach(s=>gr.addColorStop(s[0],s[1]));g.fillStyle=gr;g.fillRect(0,0,256,1);return g.getImageData(0,0,256,1).data})();
 
 let spKey='',rtaKey='';
-function stacked(){return vis.rta&&vis.sp&&(innerWidth<760||vis.spl)}
 function layoutRta(){
-  const w=rc.parentElement.clientWidth;if(!w)return;
-  let h=innerHeight<520?170:innerWidth<760?230:300;
-  if(!stacked())h=Math.max(h,Math.min(1000,Math.round(innerHeight-(rc.parentElement.getBoundingClientRect().top+scrollY)-70)));
+  const p=rc.parentElement,w=p.clientWidth,h=p.clientHeight;if(!w||!h)return;
   const key=w+'x'+h;if(key===rtaKey)return;rtaKey=key;
-  rc.width=w*dpr;rc.height=h*dpr;rc.style.height=h+'px';
+  rc.width=Math.round(w*dpr);rc.height=Math.round(h*dpr);
 }
 function layoutSpec(){
-  const w=sc.parentElement.clientWidth;if(!w)return;
-  let sh=innerHeight<520?150:220;
-  if(!stacked())sh=Math.max(sh,Math.min(1000,Math.round(innerHeight-(sc.parentElement.getBoundingClientRect().top+scrollY)-70)));
-  const key=w+'x'+sh;if(key===spKey)return;spKey=key;
+  const p=sc.parentElement,w=p.clientWidth,h=p.clientHeight;if(!w||!h)return;
+  const key=w+'x'+h;if(key===spKey)return;spKey=key;
+  const W=Math.round(w*dpr),H=Math.round(h*dpr);
   const old=document.createElement('canvas');old.width=sc.width;old.height=sc.height;old.getContext('2d').drawImage(sc,0,0);
-  sc.width=w;sc.height=sh;sc.style.height=sh+'px';gc.width=w;gc.height=sh;gc.style.height=sh+'px';
-  sx.fillStyle='#05070f';sx.fillRect(0,0,w,sh);if(old.width===w)sx.drawImage(old,0,0);
+  sc.width=W;sc.height=H;gc.width=W;gc.height=H;
+  sx.fillStyle='#05070f';sx.fillRect(0,0,W,H);if(old.width===W)sx.drawImage(old,0,0);
   drawGrid();mapX();
 }
 function layout(){layoutRta();layoutSpec()}
+function insets(){
+  const st=document.documentElement.style,land=innerWidth>innerHeight;
+  let a=(screen.orientation&&typeof screen.orientation.angle==='number')?screen.orientation.angle:(typeof window.orientation==='number'?window.orientation:0);
+  a=((a%360)+360)%360;
+  let L='max(14px,env(safe-area-inset-left,0px))',R='max(14px,env(safe-area-inset-right,0px))';
+  if(land&&a===90)R='14px';
+  if(land&&a===270)L='14px';
+  st.setProperty('--pl',L);st.setProperty('--pr',R);
+}
 const ML=38,MB=20,MT=8;
 function ticks(){return[20,50,100,200,500,1000,2000,5000,10000,20000]}
 const tl=f=>f>=1000?f/1000+'k':f;
+function tickLabels(g,xs,W,y,k){
+  let lim=W-3*k;const out=[];
+  for(let i=xs.length-1;i>=0;i--){const t=xs[i],txt=tl(t.f),w=g.measureText(txt).width;
+    const st=i===xs.length-1?W-3*k-w:t.x+3*k;
+    if(st+w<=lim){out.push([txt,st]);lim=st-5*k}}
+  out.forEach(o=>g.fillText(o[0],o[1],y));
+}
 function drawGrid(){
-  const W=gc.width,H=gc.height;gx.clearRect(0,0,W,H);gx.strokeStyle='rgba(255,255,255,.14)';gx.fillStyle='rgba(255,255,255,.7)';gx.font='11px Barlow,sans-serif';
-  const pw=W-ML;
-  ticks().forEach(f=>{const x=ML+px(f,pw);gx.beginPath();gx.moveTo(x,0);gx.lineTo(x,H);gx.stroke();gx.fillText(tl(f),Math.min(x+3,W-26),H-4)});gx.fillText('Spektrogramm (neu oben)',ML+6,14);
+  const W=gc.width,H=gc.height,k=dpr,m=ML*k,pw=W-m;gx.clearRect(0,0,W,H);
+  gx.lineWidth=1;gx.strokeStyle='rgba(255,255,255,.14)';gx.fillStyle='rgba(255,255,255,.7)';gx.font=11*k+'px Barlow,sans-serif';
+  const xs=ticks().map(f=>({f,x:m+px(f,pw)}));
+  xs.forEach(t=>{gx.beginPath();gx.moveTo(t.x,0);gx.lineTo(t.x,H);gx.stroke()});
+  tickLabels(gx,xs,W,H-5*k,k);
+  gx.fillText('Spektrogramm (neu oben)',m+6*k,14*k);
 }
 function mapX(){
-  if(!binHz)return;const pw=sc.width-ML;x0=[];x1=[];
-  for(let x=0;x<sc.width;x++){const f0=FMIN*Math.exp(Math.max(0,x-ML)/pw*LR),f1=FMIN*Math.exp(Math.max(0,x-ML+1)/pw*LR);
+  if(!binHz)return;const m=ML*dpr,pw=sc.width-m;x0=[];x1=[];
+  for(let x=0;x<sc.width;x++){const f0=FMIN*Math.exp(Math.max(0,x-m)/pw*LR),f1=FMIN*Math.exp(Math.max(0,x-m+1)/pw*LR);
     const a=Math.min(Math.round(f0/binHz),fb.length-1);x0[x]=a;x1[x]=Math.max(a,Math.min(Math.round(f1/binHz),fb.length-1))}
 }
 function build(){
@@ -175,7 +200,7 @@ function drawRta(){
   rx.clearRect(0,0,W,H);rx.font=11*dpr+'px Barlow,sans-serif';rx.lineWidth=1;
   rx.strokeStyle=css('--line');rx.fillStyle=css('--dim');
   for(let v=DMIN;v<=DMAX;v+=10){const yy=Math.round(y(v))+.5;rx.beginPath();rx.moveTo(m.l,yy);rx.lineTo(W,yy);rx.stroke();rx.fillText(Math.round(v+cal),4*dpr,yy+4*dpr)}
-  ticks().forEach(f=>{const x=m.l+px(f,pw);rx.beginPath();rx.moveTo(x,m.t);rx.lineTo(x,m.t+ph);rx.stroke();rx.fillText(tl(f),Math.min(x-6*dpr,W-26*dpr),H-5*dpr)});
+  const xs=ticks().map(f=>({f,x:m.l+px(f,pw)}));xs.forEach(t=>{rx.beginPath();rx.moveTo(t.x,m.t);rx.lineTo(t.x,m.t+ph);rx.stroke()});tickLabels(rx,xs,W,H-5*dpr,dpr);
   const g=rx.createLinearGradient(0,m.t+ph,0,m.t);g.addColorStop(0,css('--lo'));g.addColorStop(.6,css('--mid'));g.addColorStop(1,css('--hi'));
   rx.fillStyle=g;
   bands.forEach((b,k)=>{const xa=m.l+px(b.lo,pw),xb=m.l+px(b.hi,pw),bw=Math.max(1,xb-xa-(N>6?0:1.5*dpr)),yy=y(lev[k]);rx.fillRect(xa,yy,bw,m.t+ph-yy)});
@@ -184,7 +209,7 @@ function drawRta(){
 function drawSpec(){
   const W=sc.width,H=sc.height;sx.drawImage(sc,0,0,W,H-1,0,1,W,H-1);
   const row=sx.createImageData(W,1),o=row.data;
-  for(let x=0;x<W;x++){if(x<ML){o[x*4]=5;o[x*4+1]=7;o[x*4+2]=15;o[x*4+3]=255;continue}let v=-200;for(let i=x0[x];i<=x1[x];i++)if(fb[i]>v)v=fb[i];
+  for(let x=0;x<W;x++){if(x<ML*dpr){o[x*4]=5;o[x*4+1]=7;o[x*4+2]=15;o[x*4+3]=255;continue}let v=-200;for(let i=x0[x];i<=x1[x];i++)if(fb[i]>v)v=fb[i];
     const k=Math.max(0,Math.min(255,Math.round((v+CORR-DMIN)/(80)*255)))*4;o[x*4]=lut[k];o[x*4+1]=lut[k+1];o[x*4+2]=lut[k+2];o[x*4+3]=255}
   sx.putImageData(row,0,0);
 }
@@ -208,7 +233,7 @@ function view(){
 }
 $('views').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const k=b.dataset.v;vis[k]=!vis[k];view();layout()});
 document.addEventListener('visibilitychange',()=>{if(running&&ctx&&ctx.state!=='running')ctx.resume()});
-addEventListener('resize',layout);addEventListener('orientationchange',()=>setTimeout(layout,300));view();layout();try{new ResizeObserver(()=>layout()).observe($('main'))}catch(e){}
+const relayout=()=>{insets();layout()};addEventListener('resize',relayout);addEventListener('orientationchange',()=>setTimeout(relayout,300));view();insets();layout();try{const ro=new ResizeObserver(()=>layout());ro.observe(rc.parentElement);ro.observe(sc.parentElement)}catch(e){}
 </script>
 </body>
 </html>
