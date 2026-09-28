@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="RTA">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0f151b">
+<title>RTA Analyzer</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=Barlow:wght@400;500&display=swap">
+<style>
+:root{--bg:#0f151b;--panel:#161f28;--line:#26333f;--ink:#e7eef4;--dim:#8196a6;--lo:#2bb3a3;--mid:#f0b429;--hi:#e5484d;--pk:#e7eef4;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){--bg:#eef2f5;--panel:#fff;--line:#cfd8df;--ink:#12202b;--dim:#5b7080;--pk:#12202b}}
+:root[data-theme="light"]{--bg:#eef2f5;--panel:#fff;--line:#cfd8df;--ink:#12202b;--dim:#5b7080;--pk:#12202b}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px);-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.4 Barlow,system-ui,sans-serif;padding:14px max(14px,env(safe-area-inset-right,0px)) 14px max(14px,env(safe-area-inset-left,0px));touch-action:manipulation}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+button,select{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:8px 12px;font:inherit;font-size:16px;min-height:44px;cursor:pointer;touch-action:manipulation}
+button:focus-visible,select:focus-visible{outline:2px solid var(--mid);outline-offset:1px}
+button.go{background:var(--lo);border-color:var(--lo);color:#04211d;font-weight:500}
+button.on{border-color:var(--mid);color:var(--mid)}
+.grp{display:flex;gap:0}.grp button{border-radius:0;margin-left:-1px}.grp button:first-child{border-radius:6px 0 0 6px;margin:0}.grp button:last-child{border-radius:0 6px 6px 0}
+.main{display:grid;grid-template-columns:230px 1fr;gap:12px}
+.main.one{grid-template-columns:1fr}.hide{display:none!important}
+@media(max-width:760px){.main{grid-template-columns:1fr}.big{font-size:64px}.sub{grid-template-columns:repeat(4,1fr);gap:6px}.sub b{font-size:22px}body{padding-top:8px}}
+.spl{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px}
+.big{font:600 84px/1 'Barlow Condensed',sans-serif;letter-spacing:-1px}
+.unit{color:var(--dim);font-size:14px}
+.sub{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.sub b{display:block;font:600 26px/1.1 'Barlow Condensed',sans-serif}.sub span{color:var(--dim);font-size:13px}
+.plot{background:var(--panel);border:1px solid var(--line);border-radius:8px;position:relative;overflow:hidden}
+canvas{display:block;width:100%}
+#msg{color:var(--dim);margin:10px 2px;font-size:13px;min-height:1.4em}
+h2{font:500 14px Barlow,sans-serif;color:var(--dim);margin:14px 2px 6px}
+</style>
+</head>
+<body>
+<div class="bar">
+  <button class="go" id="go">Messung starten</button>
+  <select id="dev" aria-label="Eingang"><option value="">Standard-Eingang</option></select>
+  <div class="grp" id="res"><button data-v="3" class="on">1/3</button><button data-v="6">1/6</button><button data-v="12">1/12</button></div>
+  <div class="grp" id="wt"><button data-v="A" class="on">A</button><button data-v="C">C</button><button data-v="Z">Z</button></div>
+  <div class="grp" id="tc"><button data-v="F" class="on">Fast</button><button data-v="S">Slow</button></div>
+  <button id="hold" class="on">Peak-Hold</button>
+  <div class="grp" id="views" aria-label="Bereiche ein- und ausblenden"><button data-v="spl" class="on">SPL</button><button data-v="rta" class="on">RTA</button><button data-v="sp" class="on">Spektrogramm</button></div>
+</div>
+<div class="main" id="main">
+  <div class="spl" id="secSpl">
+    <div class="unit" id="lbl">LAF</div>
+    <div class="big" id="spl">--</div>
+    <div class="unit" id="cs">dB SPL, nicht kalibriert</div>
+    <div class="sub">
+      <div><b id="leq">--</b><span>Leq</span></div>
+      <div><b id="max">--</b><span>Max</span></div>
+      <div><b id="peak">--</b><span>Peak</span></div>
+      <div><b id="fs">--</b><span>dBFS</span></div>
+    </div>
+    <div class="bar" style="margin:14px 0 0"><button id="rst">Zurücksetzen</button><button id="cal">Auf 94 dB</button></div>
+  </div>
+  <div class="plot" id="secRta"><canvas id="rta"></canvas></div>
+</div>
+<div id="msg">Mikrofon oder Audio-Interface wählen und die Messung starten. Für echte Pegel: 94-dB-Kalibrator (1 kHz) ans Mikrofon halten und „Auf 94 dB“ drücken.</div>
+<div id="secSp">
+<h2>Spektrogramm (neueste Daten oben)</h2>
+<div class="plot"><canvas id="sp"></canvas><canvas id="gr" style="position:absolute;left:0;top:0;pointer-events:none"></canvas></div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const rc=$('rta'),rx=rc.getContext('2d'),sc=$('sp'),sx=sc.getContext('2d',{willReadFrequently:true}),gc=$('gr'),gx=gc.getContext('2d');
+let ctx,an,stream,fb,tb,binHz,running=false,last=0,frame=0,wl;
+let N=3,wt='A',tc='F',hold=true,cal=100,calibrated=false;
+try{const c=localStorage.getItem('cal');if(c){cal=+c;calibrated=true}}catch(e){}
+let bands=[],lev=[],pkv=[],pkt=[],wA,wC,sm=1e-12,eSum=0,eT=0,mx=-999,pkm=-999,x0=[],x1=[];
+const FMIN=20,FMAX=20000,DMIN=-100,DMAX=0,LR=Math.log(FMAX/FMIN),CORR=10*Math.log10(2/0.3046);
+const dpr=Math.min(window.devicePixelRatio||1,2);
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const px=(f,W)=>Math.log(f/FMIN)/LR*W;
+const lut=(()=>{const c=document.createElement('canvas');c.width=256;c.height=1;const g=c.getContext('2d'),gr=g.createLinearGradient(0,0,256,0);
+[[0,'#05070f'],[.25,'#2b1a6b'],[.5,'#b0306a'],[.75,'#f59e0b'],[1,'#fff6d6']].forEach(s=>gr.addColorStop(s[0],s[1]));g.fillStyle=gr;g.fillRect(0,0,256,1);return g.getImageData(0,0,256,1).data})();
+
+let spW=0,rtaKey='';
+function layoutRta(){
+  const w=rc.parentElement.clientWidth;if(!w)return;
+  const h=innerHeight<520?170:innerWidth<760?230:300,key=w+'x'+h;if(key===rtaKey)return;rtaKey=key;
+  rc.width=w*dpr;rc.height=h*dpr;rc.style.height=h+'px';
+}
+function layoutSpec(){
+  const w=sc.parentElement.clientWidth;if(!w||w===spW)return;spW=w;
+  const sh=innerHeight<520?150:220;
+  sc.width=w;sc.height=sh;sc.style.height=sh+'px';gc.width=w;gc.height=sh;gc.style.height=sh+'px';
+  sx.fillStyle='#05070f';sx.fillRect(0,0,w,sh);drawGrid();mapX();
+}
+function layout(){layoutRta();layoutSpec()}
+const ML=38,MB=20,MT=8;
+function ticks(){return[20,50,100,200,500,1000,2000,5000,10000,20000]}
+const tl=f=>f>=1000?f/1000+'k':f;
+function drawGrid(){
+  const W=gc.width,H=gc.height;gx.clearRect(0,0,W,H);gx.strokeStyle='rgba(255,255,255,.14)';gx.fillStyle='rgba(255,255,255,.7)';gx.font='11px Barlow,sans-serif';
+  const pw=W-ML;
+  ticks().forEach(f=>{const x=ML+px(f,pw);gx.beginPath();gx.moveTo(x,0);gx.lineTo(x,H);gx.stroke();gx.fillText(tl(f),Math.min(x+3,W-26),H-4)});
+}
+function mapX(){
+  if(!binHz)return;const pw=sc.width-ML;x0=[];x1=[];
+  for(let x=0;x<sc.width;x++){const f0=FMIN*Math.exp(Math.max(0,x-ML)/pw*LR),f1=FMIN*Math.exp(Math.max(0,x-ML+1)/pw*LR);
+    const a=Math.min(Math.round(f0/binHz),fb.length-1);x0[x]=a;x1[x]=Math.max(a,Math.min(Math.round(f1/binHz),fb.length-1))}
+}
+function build(){
+  bands=[];const r=Math.pow(2,1/N);
+  for(let c=1000*Math.pow(2,Math.ceil(Math.log2(FMIN/1000)*N)/N);c<=FMAX*1.001;c*=r){bands.push({c,lo:c/Math.pow(r,.5),hi:c*Math.pow(r,.5)})}
+  lev=bands.map(()=>-200);pkv=bands.map(()=>-200);pkt=bands.map(()=>0);
+}
+function weights(){
+  wA=new Float32Array(fb.length);wC=new Float32Array(fb.length);
+  for(let i=1;i<fb.length;i++){const f=i*binHz,f2=f*f,a=12194*12194;
+    const RA=a*f2*f2/((f2+20.6*20.6)*Math.sqrt((f2+107.7*107.7)*(f2+737.9*737.9))*(f2+a));
+    const RC=a*f2/((f2+20.6*20.6)*(f2+a));
+    wA[i]=Math.pow(10,(20*Math.log10(RA)+2.0)/10);wC[i]=Math.pow(10,(20*Math.log10(RC)+0.06)/10)}
+}
+async function listDevices(){
+  try{const d=(await navigator.mediaDevices.enumerateDevices()).filter(x=>x.kind==='audioinput'),cur=$('dev').value;
+  $('dev').innerHTML='<option value="">Standard-Eingang</option>'+d.map((x,i)=>`<option value="${x.deviceId}">${x.label||'Eingang '+(i+1)}</option>`).join('');$('dev').value=cur}catch(e){}
+}
+async function start(){
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){$('msg').textContent='Mikrofonzugriff braucht eine sichere Verbindung (HTTPS oder localhost).';return}
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({audio:{deviceId:$('dev').value?{exact:$('dev').value}:undefined,echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
+  }catch(e){$('msg').textContent='Kein Zugriff auf den Audio-Eingang: '+e.message;return}
+  ctx=new (window.AudioContext||window.webkitAudioContext)();ctx.resume&&ctx.resume();
+  an=ctx.createAnalyser();an.fftSize=16384;an.smoothingTimeConstant=.6;an.minDecibels=-140;an.maxDecibels=0;
+  ctx.createMediaStreamSource(stream).connect(an);
+  fb=new Float32Array(an.frequencyBinCount);tb=new Float32Array(an.fftSize);binHz=ctx.sampleRate/an.fftSize;
+  weights();build();mapX();resetSpl();running=true;last=performance.now();
+  $('go').textContent='Messung stoppen';$('go').classList.remove('go');
+  $('msg').textContent='Läuft mit '+Math.round(ctx.sampleRate/1000*10)/10+' kHz. Für Messungen Audio-Interface mit Messmikrofon nutzen; Smartphone-Mikros filtern oft.';
+  listDevices();try{navigator.wakeLock&&navigator.wakeLock.request('screen').then(l=>{wl=l}).catch(()=>{})}catch(e){}requestAnimationFrame(loop);
+}
+function stop(){running=false;try{wl&&wl.release()}catch(e){}stream&&stream.getTracks().forEach(t=>t.stop());ctx&&ctx.close();$('go').textContent='Messung starten';$('go').classList.add('go')}
+function resetSpl(){eSum=0;eT=0;mx=-999;pkm=-999}
+function loop(t){
+  if(!running)return;const dt=Math.min((t-last)/1000,.1);last=t;
+  an.getFloatFrequencyData(fb);an.getFloatTimeDomainData(tb);
+  let ms=0,pk=0;for(let i=tb.length-2048;i<tb.length;i++){const v=tb[i];ms+=v*v;const a=Math.abs(v);if(a>pk)pk=a}ms/=2048;
+  const W=wt==='A'?wA:wt==='C'?wC:null;let s=0,sw=0;
+  for(let i=1;i<fb.length;i++){const p=Math.pow(10,fb[i]/10);s+=p;if(W)sw+=p*W[i]}
+  const d=W&&s>0?sw/s:1,msW=ms*d,tau=tc==='F'?.125:1;
+  sm+=(msW-sm)*(1-Math.exp(-dt/tau));eSum+=msW*dt;eT+=dt;
+  const L=10*Math.log10(sm+1e-12)+cal;mx=Math.max(mx,L);pkm=Math.max(pkm,20*Math.log10(pk+1e-6)+cal);
+  $('spl').textContent=L.toFixed(1);$('leq').textContent=(10*Math.log10(eSum/eT+1e-12)+cal).toFixed(1);
+  $('max').textContent=mx.toFixed(1);$('peak').textContent=pkm.toFixed(1);$('fs').textContent=(10*Math.log10(ms+1e-12)).toFixed(1);
+  $('lbl').textContent='L'+wt+tc;$('cs').textContent='dB SPL'+(calibrated?'':', nicht kalibriert');
+  // RTA-Bänder
+  bands.forEach((b,k)=>{
+    const i0=Math.ceil(b.lo/binHz),i1=Math.floor(b.hi/binHz);let v;
+    if(i1<i0)v=fb[Math.min(Math.round(b.c/binHz),fb.length-1)]+CORR;
+    else{let q=0;for(let i=i0;i<=i1;i++)q+=Math.pow(10,fb[i]/10);v=10*Math.log10(q)+CORR}
+    lev[k]=Math.max(v,lev[k]-30*dt);
+    if(lev[k]>=pkv[k]){pkv[k]=lev[k];pkt[k]=t}else if(t-pkt[k]>1500)pkv[k]-=20*dt;
+  });
+  if(vis.rta)drawRta();
+  if(vis.sp&&frame++%2===0)drawSpec();
+  requestAnimationFrame(loop);
+}
+function drawRta(){
+  const W=rc.width,H=rc.height,m={l:ML*dpr,b:MB*dpr,t:MT*dpr},pw=W-m.l-4*dpr,ph=H-m.b-m.t;
+  const y=v=>m.t+(1-(Math.max(DMIN,Math.min(DMAX,v))-DMIN)/(DMAX-DMIN))*ph;
+  rx.clearRect(0,0,W,H);rx.font=11*dpr+'px Barlow,sans-serif';rx.lineWidth=1;
+  rx.strokeStyle=css('--line');rx.fillStyle=css('--dim');
+  for(let v=DMIN;v<=DMAX;v+=10){const yy=Math.round(y(v))+.5;rx.beginPath();rx.moveTo(m.l,yy);rx.lineTo(W,yy);rx.stroke();rx.fillText(Math.round(v+cal),4*dpr,yy+4*dpr)}
+  ticks().forEach(f=>{const x=m.l+px(f,pw);rx.beginPath();rx.moveTo(x,m.t);rx.lineTo(x,m.t+ph);rx.stroke();rx.fillText(tl(f),Math.min(x-6*dpr,W-26*dpr),H-5*dpr)});
+  const g=rx.createLinearGradient(0,m.t+ph,0,m.t);g.addColorStop(0,css('--lo'));g.addColorStop(.6,css('--mid'));g.addColorStop(1,css('--hi'));
+  rx.fillStyle=g;
+  bands.forEach((b,k)=>{const xa=m.l+px(b.lo,pw),xb=m.l+px(b.hi,pw),bw=Math.max(1,xb-xa-(N>6?0:1.5*dpr)),yy=y(lev[k]);rx.fillRect(xa,yy,bw,m.t+ph-yy)});
+  if(hold){rx.fillStyle=css('--pk');bands.forEach((b,k)=>{const xa=m.l+px(b.lo,pw),xb=m.l+px(b.hi,pw);rx.fillRect(xa,y(pkv[k])-dpr,Math.max(1,xb-xa-(N>6?0:1.5*dpr)),2*dpr)})}
+}
+function drawSpec(){
+  const W=sc.width,H=sc.height;sx.drawImage(sc,0,0,W,H-1,0,1,W,H-1);
+  const row=sx.createImageData(W,1),o=row.data;
+  for(let x=0;x<W;x++){let v=-200;for(let i=x0[x];i<=x1[x];i++)if(fb[i]>v)v=fb[i];
+    const k=Math.max(0,Math.min(255,Math.round((v+CORR-DMIN)/(80)*255)))*4;o[x*4]=lut[k];o[x*4+1]=lut[k+1];o[x*4+2]=lut[k+2];o[x*4+3]=255}
+  sx.putImageData(row,0,0);
+}
+function grp(id,fn){$(id).addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;[...$(id).children].forEach(c=>c.classList.remove('on'));b.classList.add('on');fn(b.dataset.v)})}
+grp('res',v=>{N=+v;build()});grp('wt',v=>{wt=v;sm=1e-12;resetSpl()});grp('tc',v=>{tc=v});
+$('hold').onclick=e=>{hold=!hold;e.target.classList.toggle('on',hold)};
+$('go').onclick=()=>running?stop():start();
+$('dev').onchange=()=>{if(running){stop();setTimeout(start,150)}};
+$('rst').onclick=resetSpl;
+$('cal').onclick=()=>{if(!running){$('msg').textContent='Zum Kalibrieren zuerst die Messung starten.';return}
+  cal=94-10*Math.log10(sm+1e-12)+cal-cal;calibrated=true;sm=1e-12;resetSpl();try{localStorage.setItem('cal',cal)}catch(e){}
+  $('msg').textContent='Kalibriert: 94 dB entspricht dem aktuellen Eingangspegel.'};
+let vis={spl:true,rta:true,sp:true};
+try{Object.assign(vis,JSON.parse(localStorage.getItem('view')||'{}'))}catch(e){}
+const secs={spl:'secSpl',rta:'secRta',sp:'secSp'};
+function view(){
+  for(const k in secs){$(secs[k]).classList.toggle('hide',!vis[k]);document.querySelector('#views [data-v="'+k+'"]').classList.toggle('on',vis[k])}
+  $('main').classList.toggle('one',!vis.spl||!vis.rta);
+  $('main').classList.toggle('hide',!vis.spl&&!vis.rta);
+  try{localStorage.setItem('view',JSON.stringify(vis))}catch(e){}
+}
+$('views').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const k=b.dataset.v;vis[k]=!vis[k];view();if(vis.rta)layoutRta();if(k==='sp'&&vis.sp)layoutSpec()});
+document.addEventListener('visibilitychange',()=>{if(running&&ctx&&ctx.state!=='running')ctx.resume()});
+addEventListener('resize',layout);view();layout();
+</script>
+</body>
+</html>
