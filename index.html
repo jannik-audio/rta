@@ -26,7 +26,7 @@ button.on{border-color:var(--mid);color:var(--mid)}
 .grp{display:flex;gap:0}.grp button{border-radius:0;margin-left:-1px}.grp button:first-child{border-radius:6px 0 0 6px;margin:0}.grp button:last-child{border-radius:0 6px 6px 0}
 .main{display:grid;grid-template-columns:230px 1fr;gap:12px}
 html,body{max-width:100%;overflow-x:hidden}.main>*{min-width:0}select{max-width:100%}
-.main.one{grid-template-columns:1fr}.main.eq{grid-template-columns:1fr 1fr}.main.all #secSp{grid-column:1/-1}.hide{display:none!important}
+.main.one{grid-template-columns:1fr}.main.eq{grid-template-columns:1fr;grid-template-rows:1fr 1fr}.main.all #secSp{grid-column:1/-1}.hide{display:none!important}
 @media(max-width:760px){.main,.main.eq{grid-template-columns:1fr}.big{font-size:64px}.sub{grid-template-columns:repeat(4,1fr);gap:6px}.sub b{font-size:22px}body{padding-top:8px}}
 .spl{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px}
 .big{font:600 84px/1 'Barlow Condensed',sans-serif;letter-spacing:-1px}
@@ -336,7 +336,13 @@ function view(){
 }
 $('views').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const k=b.dataset.v;vis[k]=!vis[k];view();layout()});
 document.addEventListener('visibilitychange',()=>{if(running&&ctx&&ctx.state!=='running')ctx.resume()});
-const relayout=()=>{insets();layout()};addEventListener('resize',relayout);addEventListener('orientationchange',()=>setTimeout(relayout,300));view();insets();layout();try{const ro=new ResizeObserver(()=>layout());ro.observe(rc.parentElement);ro.observe(sc.parentElement)}catch(e){}
+const relayout=()=>{insets();layout()};
+function settle(ms){const start=performance.now();(function step(){relayout();if(performance.now()-start<ms)requestAnimationFrame(step)})()}
+addEventListener('resize',relayout);
+addEventListener('orientationchange',()=>settle(700));
+if(window.visualViewport)visualViewport.addEventListener('resize',()=>settle(500));
+view();insets();layout();
+try{const ro=new ResizeObserver(()=>layout());ro.observe(rc.parentElement);ro.observe(sc.parentElement)}catch(e){}
 if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{})}
 </script>
 </body>
