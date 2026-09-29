@@ -40,17 +40,17 @@ canvas{display:block;width:100%}
 h2{font:500 14px Barlow,sans-serif;color:var(--dim);margin:14px 2px 6px}
 input[type=number]{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font:inherit;font-size:16px;min-height:44px;width:76px}
 input[type=range]{accent-color:var(--mid);width:100px;vertical-align:middle}
-details.tools{border:1px solid var(--line);border-radius:6px;margin-top:14px;background:var(--panel)}
-details.tools summary{list-style:none;cursor:pointer;padding:10px 12px;font:500 15px Barlow,sans-serif;color:var(--dim);display:flex;align-items:center;justify-content:space-between;min-height:24px}
-details.tools summary::-webkit-details-marker{display:none}
-details.tools summary::after{content:'▸';font-size:12px;transition:transform .15s}
-details.tools[open] summary::after{transform:rotate(90deg)}
-details.tools summary:focus-visible{outline:2px solid var(--mid);outline-offset:-2px}
-details.tools .inner{padding:0 12px 12px}
-details.tools .bar{margin:0 0 10px!important}
-details.tools .bar:last-child{margin-bottom:0!important}
-#alarmState{min-height:1.2em;font-size:13px;font-weight:500}
-#alarmState.hit{color:var(--hi)}
+details.tools{position:relative}
+details.tools>summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:8px 12px;font:inherit;font-size:15px;min-height:44px}
+details.tools>summary::-webkit-details-marker{display:none}
+details.tools>summary::after{content:'▾';font-size:11px;color:var(--dim)}
+details.tools[open]>summary{border-color:var(--mid);color:var(--mid)}
+details.tools:focus-within>summary{outline:2px solid var(--mid);outline-offset:-2px}
+details.tools .inner{position:absolute;top:calc(100% + 6px);right:0;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px;z-index:30;min-width:230px;max-width:85vw;box-shadow:0 10px 30px rgba(0,0,0,.45)}
+details.tools .inner .bar{margin:0 0 10px!important}
+details.tools .inner .bar:last-child{margin-bottom:0!important}
+.rta-controls{position:absolute;top:8px;right:8px;display:flex;gap:6px;z-index:5}
+.rta-controls button{padding:6px 10px;min-height:34px;font-size:13px;background:rgba(15,21,27,.85);border-color:rgba(255,255,255,.25)}
 .sub2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}
 .sub2 b{display:block;font:600 22px/1.1 'Barlow Condensed',sans-serif}.sub2 span{color:var(--dim);font-size:13px}
 
@@ -72,10 +72,19 @@ body{padding-left:var(--pl);padding-right:var(--pr);display:flex;flex-direction:
   <div class="grp" id="res"><button data-v="3" class="on">1/3</button><button data-v="6">1/6</button><button data-v="12">1/12</button></div>
   <div class="grp" id="wt"><button data-v="A" class="on">A</button><button data-v="C">C</button><button data-v="Z">Z</button></div>
   <div class="grp" id="tc"><button data-v="F" class="on">Fast</button><button data-v="S">Slow</button></div>
-  <button id="hold" class="on">Peak-Hold</button>
-  <button id="snap">Snapshot</button>
   <button id="noise">Rosa Rauschen</button>
-  <input type="range" id="noiseVol" min="0" max="100" value="30" aria-label="Lautstärke Rosa Rauschen">
+  <details class="tools"><summary>Werkzeuge</summary><div class="inner">
+    <div class="bar"><button id="rst">Zurücksetzen</button><button id="cal">Auf 94 dB</button></div>
+    <div class="bar"><button id="exp">Exportieren</button></div>
+    <h2 style="margin-top:0">Alarmschwelle</h2>
+    <div class="bar" style="flex-wrap:wrap"><input type="number" id="alarmDb" value="100" aria-label="Alarmschwelle in dB"><span class="unit">dB (LAF)</span></div>
+    <h2>Leq über Zeitraum</h2>
+    <div class="bar" style="flex-wrap:wrap">
+      <select id="pDur" aria-label="Zeitraum"><option value="900">15 min</option><option value="1800">30 min</option><option value="3600">60 min</option><option value="0">Unbegrenzt</option></select>
+      <button id="pStart">Start</button><button id="pReset">Zurücksetzen</button>
+    </div>
+    <div class="sub2"><div><b id="pLeq">--</b><span>Leq (Zeitraum)</span></div><div><b id="pTime">00:00</b><span>Dauer</span></div></div>
+  </div></details>
   <div class="grp" id="views" aria-label="Bereiche ein- und ausblenden"><button data-v="spl" class="on">SPL</button><button data-v="rta" class="on">RTA</button><button data-v="sp" class="on">Spektrogramm</button></div>
 </div>
 <div class="main" id="main">
@@ -89,25 +98,10 @@ body{padding-left:var(--pl);padding-right:var(--pr);display:flex;flex-direction:
       <div><b id="peak">--</b><span>Peak</span></div>
       <div><b id="fs">--</b><span>dBFS</span></div>
     </div>
-    <details class="tools"><summary>Werkzeuge</summary><div class="inner">
-      <div class="bar"><button id="rst">Zurücksetzen</button><button id="cal">Auf 94 dB</button></div>
-      <div class="bar"><button id="exp">Exportieren</button></div>
-      <div class="bar"><span class="unit">Felder:</span><div class="grp" id="fields"><button data-v="alarm">Alarm</button><button data-v="leq">Leq-Log</button></div></div>
-    </div></details>
-    <div id="secAlarm" class="hide">
-      <h2>Alarmschwelle</h2>
-      <div class="bar" style="flex-wrap:wrap"><button id="alarmOn">Alarm an</button><input type="number" id="alarmDb" value="100" aria-label="Alarmschwelle in dB"><span class="unit">dB (LAF)</span></div>
-    </div>
-    <div id="secLeq" class="hide">
-      <h2>Leq über Zeitraum</h2>
-      <div class="bar" style="flex-wrap:wrap">
-        <select id="pDur" aria-label="Zeitraum"><option value="900">15 min</option><option value="1800">30 min</option><option value="3600">60 min</option><option value="0">Unbegrenzt</option></select>
-        <button id="pStart">Start</button><button id="pReset">Zurücksetzen</button>
-      </div>
-      <div class="sub2"><div><b id="pLeq">--</b><span>Leq (Zeitraum)</span></div><div><b id="pTime">00:00</b><span>Dauer</span></div></div>
-    </div>
   </div>
-  <div class="plot" id="secRta"><canvas id="rta"></canvas></div>
+  <div class="plot" id="secRta"><canvas id="rta"></canvas>
+    <div class="rta-controls"><button id="hold" class="on">Peak-Hold</button><button id="snap">Snapshot</button></div>
+  </div>
   <div class="plot" id="secSp"><canvas id="sp"></canvas><canvas id="gr" style="position:absolute;left:0;top:0;pointer-events:none"></canvas></div>
 </div>
 <div id="msg">Mikrofon oder Audio-Interface wählen und die Messung starten. Für echte Pegel: 94-dB-Kalibrator (1 kHz) ans Mikrofon halten und „Auf 94 dB“ drücken.</div>
@@ -117,7 +111,6 @@ const $=id=>document.getElementById(id);
 const rc=$('rta'),rx=rc.getContext('2d'),sc=$('sp'),sx=sc.getContext('2d',{willReadFrequently:true}),gc=$('gr'),gx=gc.getContext('2d');
 let ctx,an,stream,fb,tb,binHz,running=false,last=0,frame=0,wl;
 let snapLev=null,nCtx,nNode,nGain,noiseOn=false;
-let alarmOn=false,alarmLast=0;
 let pEsum=0,pEt=0,pRunning=false,pDur=900;
 let N=3,wt='A',tc='F',hold=true,cal=100,calibrated=false;
 try{const c=localStorage.getItem('cal');if(c){cal=+c;calibrated=true}}catch(e){}
@@ -199,7 +192,7 @@ async function start(){
     stream=await navigator.mediaDevices.getUserMedia({audio:{deviceId:$('dev').value?{exact:$('dev').value}:undefined,echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
   }catch(e){$('msg').textContent='Kein Zugriff auf den Audio-Eingang: '+e.message;return}
   ctx=new (window.AudioContext||window.webkitAudioContext)();ctx.resume&&ctx.resume();
-  an=ctx.createAnalyser();an.fftSize=16384;an.smoothingTimeConstant=.6;an.minDecibels=-140;an.maxDecibels=0;
+  an=ctx.createAnalyser();an.fftSize=8192;an.smoothingTimeConstant=.15;an.minDecibels=-140;an.maxDecibels=0;
   ctx.createMediaStreamSource(stream).connect(an);
   fb=new Float32Array(an.frequencyBinCount);tb=new Float32Array(an.fftSize);binHz=ctx.sampleRate/an.fftSize;
   weights();build();mapX();resetSpl();running=true;last=performance.now();
@@ -221,7 +214,7 @@ function loop(t){
   $('spl').textContent=L.toFixed(1);$('leq').textContent=(10*Math.log10(eSum/eT+1e-12)+cal).toFixed(1);
   $('max').textContent=mx.toFixed(1);$('peak').textContent=pkm.toFixed(1);$('fs').textContent=(10*Math.log10(ms+1e-12)).toFixed(1);
   $('lbl').textContent='L'+wt+tc;$('cs').textContent='dB SPL'+(calibrated?'':', nicht kalibriert');
-  $('spl').classList.toggle('hit',alarmOn&&L>=+$('alarmDb').value);
+  $('spl').classList.toggle('hit',L>=+$('alarmDb').value);
   if(pRunning){
     pEsum+=msW*dt;pEt+=dt;
     if(pDur>0&&pEt>=pDur){pRunning=false;$('pStart').textContent='Start';$('pStart').classList.remove('on')}
@@ -292,7 +285,7 @@ function toggleNoise(){
   }
   try{
     nCtx=new (window.AudioContext||window.webkitAudioContext)();
-    nGain=nCtx.createGain();nGain.gain.value=+$('noiseVol').value/100*.5;
+    nGain=nCtx.createGain();nGain.gain.value=.3;
     nNode=nCtx.createScriptProcessor(4096,1,1);
     let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
     nNode.onaudioprocess=e=>{
@@ -309,10 +302,6 @@ function toggleNoise(){
   }catch(e){$('msg').textContent='Rosa Rauschen konnte nicht gestartet werden: '+e.message}
 }
 $('noise').onclick=toggleNoise;
-$('noiseVol').oninput=()=>{if(nGain)nGain.gain.value=+$('noiseVol').value/100*.5};
-
-// Alarmschwelle
-$('alarmOn').onclick=e=>{alarmOn=!alarmOn;e.target.classList.toggle('on',alarmOn);if(!alarmOn)$('spl').classList.remove('hit')};
 
 // Leq über Zeitraum
 $('pDur').onchange=()=>{pDur=+$('pDur').value};
@@ -336,19 +325,16 @@ $('exp').onclick=()=>{
   a.href=URL.createObjectURL(blob);a.download='rta-messung-'+ts+'.csv';a.click();
   rc.toBlob(b=>{if(!b)return;const a2=document.createElement('a');a2.href=URL.createObjectURL(b);a2.download='rta-diagramm-'+ts+'.png';a2.click()});
 };
-let vis={spl:true,rta:true,sp:true,alarm:false,leq:false};
+let vis={spl:true,rta:true,sp:true};
 try{Object.assign(vis,JSON.parse(localStorage.getItem('view')||'{}'))}catch(e){}
 const secs={spl:'secSpl',rta:'secRta',sp:'secSp'};
-const secs2={alarm:'secAlarm',leq:'secLeq'};
 function view(){
   for(const k in secs){$(secs[k]).classList.toggle('hide',!vis[k]);document.querySelector('#views [data-v="'+k+'"]').classList.toggle('on',vis[k])}
-  for(const k in secs2){$(secs2[k]).classList.toggle('hide',!vis[k]);document.querySelector('#fields [data-v="'+k+'"]').classList.toggle('on',vis[k])}
   const n=(vis.spl?1:0)+(vis.rta?1:0)+(vis.sp?1:0),m=$('main').classList;
   m.toggle('one',n<2);m.toggle('eq',!vis.spl&&vis.rta&&vis.sp);m.toggle('all',n===3);m.toggle('hide',n===0);
   try{localStorage.setItem('view',JSON.stringify(vis))}catch(e){}
 }
 $('views').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const k=b.dataset.v;vis[k]=!vis[k];view();layout()});
-$('fields').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const k=b.dataset.v;vis[k]=!vis[k];view();layout()});
 document.addEventListener('visibilitychange',()=>{if(running&&ctx&&ctx.state!=='running')ctx.resume()});
 const relayout=()=>{insets();layout()};addEventListener('resize',relayout);addEventListener('orientationchange',()=>setTimeout(relayout,300));view();insets();layout();try{const ro=new ResizeObserver(()=>layout());ro.observe(rc.parentElement);ro.observe(sc.parentElement)}catch(e){}
 if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{})}
