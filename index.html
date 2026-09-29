@@ -30,6 +30,7 @@ html,body{max-width:100%;overflow-x:hidden}.main>*{min-width:0}select{max-width:
 @media(max-width:760px){.main,.main.eq{grid-template-columns:1fr}.big{font-size:64px}.sub{grid-template-columns:repeat(4,1fr);gap:6px}.sub b{font-size:22px}body{padding-top:8px}}
 .spl{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px}
 .big{font:600 84px/1 'Barlow Condensed',sans-serif;letter-spacing:-1px}
+.big.hit{color:var(--hi)}
 .unit{color:var(--dim);font-size:14px}
 .sub{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
 .sub b{display:block;font:600 26px/1.1 'Barlow Condensed',sans-serif}.sub span{color:var(--dim);font-size:13px}
@@ -96,7 +97,6 @@ body{padding-left:var(--pl);padding-right:var(--pr);display:flex;flex-direction:
     <div id="secAlarm" class="hide">
       <h2>Alarmschwelle</h2>
       <div class="bar" style="flex-wrap:wrap"><button id="alarmOn">Alarm an</button><input type="number" id="alarmDb" value="100" aria-label="Alarmschwelle in dB"><span class="unit">dB (LAF)</span></div>
-      <div id="alarmState"></div>
     </div>
     <div id="secLeq" class="hide">
       <h2>Leq über Zeitraum</h2>
@@ -221,11 +221,7 @@ function loop(t){
   $('spl').textContent=L.toFixed(1);$('leq').textContent=(10*Math.log10(eSum/eT+1e-12)+cal).toFixed(1);
   $('max').textContent=mx.toFixed(1);$('peak').textContent=pkm.toFixed(1);$('fs').textContent=(10*Math.log10(ms+1e-12)).toFixed(1);
   $('lbl').textContent='L'+wt+tc;$('cs').textContent='dB SPL'+(calibrated?'':', nicht kalibriert');
-  if(alarmOn){
-    const thr=+$('alarmDb').value,as=$('alarmState');
-    if(L>=thr){as.textContent='ALARM: '+L.toFixed(1)+' dB \u2265 '+thr+' dB';as.classList.add('hit')}
-    else{as.textContent='';as.classList.remove('hit')}
-  }
+  $('spl').classList.toggle('hit',alarmOn&&L>=+$('alarmDb').value);
   if(pRunning){
     pEsum+=msW*dt;pEt+=dt;
     if(pDur>0&&pEt>=pDur){pRunning=false;$('pStart').textContent='Start';$('pStart').classList.remove('on')}
@@ -316,7 +312,7 @@ $('noise').onclick=toggleNoise;
 $('noiseVol').oninput=()=>{if(nGain)nGain.gain.value=+$('noiseVol').value/100*.5};
 
 // Alarmschwelle
-$('alarmOn').onclick=e=>{alarmOn=!alarmOn;e.target.classList.toggle('on',alarmOn);if(!alarmOn){$('alarmState').textContent='';$('alarmState').classList.remove('hit')}};
+$('alarmOn').onclick=e=>{alarmOn=!alarmOn;e.target.classList.toggle('on',alarmOn);if(!alarmOn)$('spl').classList.remove('hit')};
 
 // Leq über Zeitraum
 $('pDur').onchange=()=>{pDur=+$('pDur').value};
