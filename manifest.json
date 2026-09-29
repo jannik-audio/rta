@@ -1,8 +1,0 @@
-{
-  "name": "RTA Analyzer",
-  "short_name": "RTA",
-  "start_url": "./index.html",
-  "display": "fullscreen",
-  "background_color": "#0f151b",
-  "theme_color": "#0f151b"
-}
