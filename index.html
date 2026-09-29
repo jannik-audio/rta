@@ -8,6 +8,7 @@
 <meta name="apple-mobile-web-app-title" content="RTA">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0f151b">
+<link rel="manifest" href="manifest.json">
 <title>RTA Analyzer</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=Barlow:wght@400;500&display=swap">
 <style>
@@ -36,6 +37,12 @@ html,body{max-width:100%;overflow-x:hidden}.main>*{min-width:0}select{max-width:
 canvas{display:block;width:100%}
 #msg{color:var(--dim);margin:10px 2px;font-size:13px;min-height:1.4em}
 h2{font:500 14px Barlow,sans-serif;color:var(--dim);margin:14px 2px 6px}
+input[type=number]{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font:inherit;font-size:16px;min-height:44px;width:76px}
+input[type=range]{accent-color:var(--mid);width:100px;vertical-align:middle}
+#alarmState{min-height:1.2em;font-size:13px;font-weight:500}
+#alarmState.hit{color:var(--hi)}
+.sub2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}
+.sub2 b{display:block;font:600 22px/1.1 'Barlow Condensed',sans-serif}.sub2 span{color:var(--dim);font-size:13px}
 
 :root{--pl:max(14px,env(safe-area-inset-left,0px));--pr:max(14px,env(safe-area-inset-right,0px))}
 body{padding-left:var(--pl);padding-right:var(--pr);display:flex;flex-direction:column;min-height:100vh;min-height:calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
@@ -56,6 +63,9 @@ body{padding-left:var(--pl);padding-right:var(--pr);display:flex;flex-direction:
   <div class="grp" id="wt"><button data-v="A" class="on">A</button><button data-v="C">C</button><button data-v="Z">Z</button></div>
   <div class="grp" id="tc"><button data-v="F" class="on">Fast</button><button data-v="S">Slow</button></div>
   <button id="hold" class="on">Peak-Hold</button>
+  <button id="snap">Snapshot</button>
+  <button id="noise">Rosa Rauschen</button>
+  <input type="range" id="noiseVol" min="0" max="100" value="30" aria-label="Lautstärke Rosa Rauschen">
   <div class="grp" id="views" aria-label="Bereiche ein- und ausblenden"><button data-v="spl" class="on">SPL</button><button data-v="rta" class="on">RTA</button><button data-v="sp" class="on">Spektrogramm</button></div>
 </div>
 <div class="main" id="main">
@@ -70,6 +80,21 @@ body{padding-left:var(--pl);padding-right:var(--pr);display:flex;flex-direction:
       <div><b id="fs">--</b><span>dBFS</span></div>
     </div>
     <div class="bar" style="margin:14px 0 0"><button id="rst">Zurücksetzen</button><button id="cal">Auf 94 dB</button></div>
+    <div class="bar" style="margin:10px 0 0"><button id="exp">Exportieren</button></div>
+    <div class="bar" style="margin:14px 0 0"><span class="unit">Felder:</span><div class="grp" id="fields"><button data-v="alarm">Alarm</button><button data-v="leq">Leq-Log</button></div></div>
+    <div id="secAlarm" class="hide">
+      <h2>Alarmschwelle</h2>
+      <div class="bar" style="flex-wrap:wrap"><button id="alarmOn">Alarm an</button><input type="number" id="alarmDb" value="100" aria-label="Alarmschwelle in dB"><span class="unit">dB (LAF)</span></div>
+      <div id="alarmState"></div>
+    </div>
+    <div id="secLeq" class="hide">
+      <h2>Leq über Zeitraum</h2>
+      <div class="bar" style="flex-wrap:wrap">
+        <select id="pDur" aria-label="Zeitraum"><option value="900">15 min</option><option value="1800">30 min</option><option value="3600">60 min</option><option value="0">Unbegrenzt</option></select>
+        <button id="pStart">Start</button><button id="pReset">Zurücksetzen</button>
+      </div>
+      <div class="sub2"><div><b id="pLeq">--</b><span>Leq (Zeitraum)</span></div><div><b id="pTime">00:00</b><span>Dauer</span></div></div>
+    </div>
   </div>
   <div class="plot" id="secRta"><canvas id="rta"></canvas></div>
   <div class="plot" id="secSp"><canvas id="sp"></canvas><canvas id="gr" style="position:absolute;left:0;top:0;pointer-events:none"></canvas></div>
@@ -80,6 +105,9 @@ body{padding-left:var(--pl);padding-right:var(--pr);display:flex;flex-direction:
 const $=id=>document.getElementById(id);
 const rc=$('rta'),rx=rc.getContext('2d'),sc=$('sp'),sx=sc.getContext('2d',{willReadFrequently:true}),gc=$('gr'),gx=gc.getContext('2d');
 let ctx,an,stream,fb,tb,binHz,running=false,last=0,frame=0,wl;
+let snapLev=null,nCtx,nNode,nGain,noiseOn=false;
+let alarmOn=false,alarmLast=0;
+let pEsum=0,pEt=0,pRunning=false,pDur=900;
 let N=3,wt='A',tc='F',hold=true,cal=100,calibrated=false;
 try{const c=localStorage.getItem('cal');if(c){cal=+c;calibrated=true}}catch(e){}
 let bands=[],lev=[],pkv=[],pkt=[],wA,wC,sm=1e-12,eSum=0,eT=0,mx=-999,pkm=-999,x0=[],x1=[];
@@ -141,7 +169,7 @@ function mapX(){
 function build(){
   bands=[];const r=Math.pow(2,1/N);
   for(let c=1000*Math.pow(2,Math.ceil(Math.log2(FMIN/1000)*N)/N);c<=FMAX*1.001;c*=r){bands.push({c,lo:c/Math.pow(r,.5),hi:c*Math.pow(r,.5)})}
-  lev=bands.map(()=>-200);pkv=bands.map(()=>-200);pkt=bands.map(()=>0);
+  lev=bands.map(()=>-200);pkv=bands.map(()=>-200);pkt=bands.map(()=>0);snapLev=null;$('snap').classList.remove('on');
 }
 function weights(){
   wA=new Float32Array(fb.length);wC=new Float32Array(fb.length);
@@ -182,6 +210,17 @@ function loop(t){
   $('spl').textContent=L.toFixed(1);$('leq').textContent=(10*Math.log10(eSum/eT+1e-12)+cal).toFixed(1);
   $('max').textContent=mx.toFixed(1);$('peak').textContent=pkm.toFixed(1);$('fs').textContent=(10*Math.log10(ms+1e-12)).toFixed(1);
   $('lbl').textContent='L'+wt+tc;$('cs').textContent='dB SPL'+(calibrated?'':', nicht kalibriert');
+  if(alarmOn){
+    const thr=+$('alarmDb').value,as=$('alarmState');
+    if(L>=thr){as.textContent='ALARM: '+L.toFixed(1)+' dB \u2265 '+thr+' dB';as.classList.add('hit')}
+    else{as.textContent='';as.classList.remove('hit')}
+  }
+  if(pRunning){
+    pEsum+=msW*dt;pEt+=dt;
+    if(pDur>0&&pEt>=pDur){pRunning=false;$('pStart').textContent='Start';$('pStart').classList.remove('on')}
+  }
+  if(pEt>0)$('pLeq').textContent=(10*Math.log10(pEsum/pEt+1e-12)+cal).toFixed(1);
+  {const mm=Math.floor(pEt/60),ss=Math.floor(pEt%60);$('pTime').textContent=String(mm).padStart(2,'0')+':'+String(ss).padStart(2,'0')+(pDur>0?' / '+Math.floor(pDur/60)+':00':'')}
   // RTA-Bänder
   bands.forEach((b,k)=>{
     const i0=Math.ceil(b.lo/binHz),i1=Math.floor(b.hi/binHz);let v;
@@ -205,6 +244,8 @@ function drawRta(){
   rx.fillStyle=g;
   bands.forEach((b,k)=>{const xa=m.l+px(b.lo,pw),xb=m.l+px(b.hi,pw),bw=Math.max(1,xb-xa-(N>6?0:1.5*dpr)),yy=y(lev[k]);rx.fillRect(xa,yy,bw,m.t+ph-yy)});
   if(hold){rx.fillStyle=css('--pk');bands.forEach((b,k)=>{const xa=m.l+px(b.lo,pw),xb=m.l+px(b.hi,pw);rx.fillRect(xa,y(pkv[k])-dpr,Math.max(1,xb-xa-(N>6?0:1.5*dpr)),2*dpr)})}
+  if(snapLev&&snapLev.length===bands.length){rx.strokeStyle='#ffffff';rx.lineWidth=2*dpr;rx.beginPath();
+    bands.forEach((b,k)=>{const xa=m.l+px(b.lo,pw),xb=m.l+px(b.hi,pw),yy=y(snapLev[k]);rx.moveTo(xa,yy);rx.lineTo(xb,yy)});rx.stroke()}
 }
 function drawSpec(){
   const W=sc.width,H=sc.height;sx.drawImage(sc,0,0,W,H-1,0,1,W,H-1);
@@ -222,18 +263,88 @@ $('rst').onclick=resetSpl;
 $('cal').onclick=()=>{if(!running){$('msg').textContent='Zum Kalibrieren zuerst die Messung starten.';return}
   cal=94-10*Math.log10(sm+1e-12)+cal-cal;calibrated=true;sm=1e-12;resetSpl();try{localStorage.setItem('cal',cal)}catch(e){}
   $('msg').textContent='Kalibriert: 94 dB entspricht dem aktuellen Eingangspegel.'};
-let vis={spl:true,rta:true,sp:true};
+
+// Snapshot
+$('snap').onclick=()=>{
+  if(snapLev){snapLev=null;$('snap').classList.remove('on');return}
+  if(!bands.length){$('msg').textContent='Zuerst Messung starten, dann Snapshot aufnehmen.';return}
+  snapLev=lev.slice();$('snap').classList.add('on');
+};
+
+// Rosa Rauschen (Pink Noise) — eigener, unabhängiger Ausgabe-Kontext
+function beep(){
+  try{const a=new (window.AudioContext||window.webkitAudioContext)();
+    const o=a.createOscillator(),g=a.createGain();o.frequency.value=880;g.gain.value=.15;
+    o.connect(g).connect(a.destination);o.start();o.stop(a.currentTime+.18);setTimeout(()=>{try{a.close()}catch(e){}},300);
+  }catch(e){}
+}
+function toggleNoise(){
+  if(noiseOn){
+    try{nNode&&nNode.disconnect();nGain&&nGain.disconnect();nCtx&&nCtx.close()}catch(e){}
+    noiseOn=false;$('noise').classList.remove('on');$('noise').textContent='Rosa Rauschen';return;
+  }
+  try{
+    nCtx=new (window.AudioContext||window.webkitAudioContext)();
+    nGain=nCtx.createGain();nGain.gain.value=+$('noiseVol').value/100*.5;
+    nNode=nCtx.createScriptProcessor(4096,1,1);
+    let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+    nNode.onaudioprocess=e=>{
+      const out=e.outputBuffer.getChannelData(0);
+      for(let i=0;i<out.length;i++){
+        const white=Math.random()*2-1;
+        b0=.99886*b0+white*.0555179;b1=.99332*b1+white*.0750759;b2=.96900*b2+white*.1538520;
+        b3=.86650*b3+white*.3104856;b4=.55000*b4+white*.5329522;b5=-.7616*b5-white*.0168980;
+        let pink=b0+b1+b2+b3+b4+b5+b6+white*.5362;b6=white*.115926;out[i]=pink*.11;
+      }
+    };
+    nNode.connect(nGain).connect(nCtx.destination);
+    noiseOn=true;$('noise').classList.add('on');$('noise').textContent='Rauschen stoppen';
+  }catch(e){$('msg').textContent='Rosa Rauschen konnte nicht gestartet werden: '+e.message}
+}
+$('noise').onclick=toggleNoise;
+$('noiseVol').oninput=()=>{if(nGain)nGain.gain.value=+$('noiseVol').value/100*.5};
+
+// Alarmschwelle
+$('alarmOn').onclick=e=>{alarmOn=!alarmOn;e.target.classList.toggle('on',alarmOn);if(!alarmOn){$('alarmState').textContent='';$('alarmState').classList.remove('hit')}};
+
+// Leq über Zeitraum
+$('pDur').onchange=()=>{pDur=+$('pDur').value};
+$('pStart').onclick=e=>{pRunning=!pRunning;e.target.textContent=pRunning?'Pause':'Start';e.target.classList.toggle('on',pRunning)};
+$('pReset').onclick=()=>{pEsum=0;pEt=0;pRunning=false;$('pStart').textContent='Start';$('pStart').classList.remove('on');$('pLeq').textContent='--';$('pTime').textContent='00:00'};
+
+// Export (CSV der Messwerte + PNG des RTA)
+$('exp').onclick=()=>{
+  if(!bands.length){$('msg').textContent='Zuerst Messung starten, dann exportieren.';return}
+  const now=new Date(),ts=now.toISOString().slice(0,19).replace(/[:T]/g,'-');
+  let csv='Messung RTA Analyzer\n';
+  csv+='Zeitstempel;'+now.toLocaleString('de-DE')+'\n';
+  csv+='LAF;'+$('spl').textContent+'\n';
+  csv+='Leq;'+$('leq').textContent+'\n';
+  csv+='Max;'+$('max').textContent+'\n';
+  csv+='Peak;'+$('peak').textContent+'\n';
+  csv+='Leq Zeitraum;'+$('pLeq').textContent+' ('+$('pTime').textContent+')\n\n';
+  csv+='Frequenz (Hz);Pegel (dB)\n';
+  bands.forEach((b,k)=>{csv+=Math.round(b.c)+';'+lev[k].toFixed(1)+'\n'});
+  const blob=new Blob([csv],{type:'text/csv'}),a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);a.download='rta-messung-'+ts+'.csv';a.click();
+  rc.toBlob(b=>{if(!b)return;const a2=document.createElement('a');a2.href=URL.createObjectURL(b);a2.download='rta-diagramm-'+ts+'.png';a2.click()});
+};
+let vis={spl:true,rta:true,sp:true,alarm:false,leq:false};
 try{Object.assign(vis,JSON.parse(localStorage.getItem('view')||'{}'))}catch(e){}
 const secs={spl:'secSpl',rta:'secRta',sp:'secSp'};
+const secs2={alarm:'secAlarm',leq:'secLeq'};
 function view(){
   for(const k in secs){$(secs[k]).classList.toggle('hide',!vis[k]);document.querySelector('#views [data-v="'+k+'"]').classList.toggle('on',vis[k])}
+  for(const k in secs2){$(secs2[k]).classList.toggle('hide',!vis[k]);document.querySelector('#fields [data-v="'+k+'"]').classList.toggle('on',vis[k])}
   const n=(vis.spl?1:0)+(vis.rta?1:0)+(vis.sp?1:0),m=$('main').classList;
   m.toggle('one',n<2);m.toggle('eq',!vis.spl&&vis.rta&&vis.sp);m.toggle('all',n===3);m.toggle('hide',n===0);
   try{localStorage.setItem('view',JSON.stringify(vis))}catch(e){}
 }
 $('views').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const k=b.dataset.v;vis[k]=!vis[k];view();layout()});
+$('fields').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const k=b.dataset.v;vis[k]=!vis[k];view();layout()});
 document.addEventListener('visibilitychange',()=>{if(running&&ctx&&ctx.state!=='running')ctx.resume()});
 const relayout=()=>{insets();layout()};addEventListener('resize',relayout);addEventListener('orientationchange',()=>setTimeout(relayout,300));view();insets();layout();try{const ro=new ResizeObserver(()=>layout());ro.observe(rc.parentElement);ro.observe(sc.parentElement)}catch(e){}
+if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{})}
 </script>
 </body>
 </html>
