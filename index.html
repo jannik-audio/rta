@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="RTA">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="theme-color" content="#0f151b">
 <link rel="manifest" href="manifest.json">
 <title>RTA Analyzer</title>
@@ -338,9 +338,12 @@ $('views').addEventListener('click',e=>{const b=e.target.closest('button');if(!b
 document.addEventListener('visibilitychange',()=>{if(running&&ctx&&ctx.state!=='running')ctx.resume()});
 const relayout=()=>{insets();layout()};
 function settle(ms){const start=performance.now();(function step(){relayout();if(performance.now()-start<ms)requestAnimationFrame(step)})()}
+const standalone=window.navigator.standalone===true||matchMedia('(display-mode: standalone)').matches;
+const settleMs=standalone?1400:700;
 addEventListener('resize',relayout);
-addEventListener('orientationchange',()=>settle(700));
-if(window.visualViewport)visualViewport.addEventListener('resize',()=>settle(500));
+addEventListener('orientationchange',()=>settle(settleMs));
+if(window.visualViewport)visualViewport.addEventListener('resize',()=>settle(standalone?1000:500));
+addEventListener('pageshow',()=>settle(settleMs));
 view();insets();layout();
 try{const ro=new ResizeObserver(()=>layout());ro.observe(rc.parentElement);ro.observe(sc.parentElement)}catch(e){}
 if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{})}
