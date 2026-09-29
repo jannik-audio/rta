@@ -46,7 +46,7 @@ details.tools>summary::-webkit-details-marker{display:none}
 details.tools>summary::after{content:'▾';font-size:11px;color:var(--dim)}
 details.tools[open]>summary{border-color:var(--mid);color:var(--mid)}
 details.tools:focus-within>summary{outline:2px solid var(--mid);outline-offset:-2px}
-details.tools .inner{position:absolute;top:calc(100% + 6px);right:0;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px;z-index:30;min-width:230px;max-width:85vw;box-shadow:0 10px 30px rgba(0,0,0,.45)}
+details.tools .inner{position:fixed;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px;z-index:30;min-width:230px;max-width:85vw;max-height:80vh;overflow-y:auto;box-shadow:0 10px 30px rgba(0,0,0,.45)}
 details.tools .inner .bar{margin:0 0 10px!important}
 details.tools .inner .bar:last-child{margin-bottom:0!important}
 .rta-controls{position:absolute;top:8px;right:8px;display:flex;gap:6px;z-index:5}
@@ -345,6 +345,19 @@ addEventListener('resize',relayout);
 addEventListener('orientationchange',()=>settle(settleMs));
 if(window.visualViewport)visualViewport.addEventListener('resize',()=>settle(standalone?1000:500));
 addEventListener('pageshow',()=>settle(settleMs));
+(function(){
+  const d=document.querySelector('details.tools'),sum=d.querySelector('summary'),inner=d.querySelector('.inner');
+  function place(){
+    const r=sum.getBoundingClientRect(),iw=Math.min(inner.offsetWidth||260,innerWidth-16);
+    let left=r.right-iw;left=Math.max(8,Math.min(left,innerWidth-iw-8));
+    let top=r.bottom+6;top=Math.min(top,innerHeight-40);
+    inner.style.left=left+'px';inner.style.top=top+'px';
+  }
+  d.addEventListener('toggle',()=>{if(d.open)place()});
+  addEventListener('resize',()=>{if(d.open)place()});
+  addEventListener('scroll',()=>{if(d.open)place()},true);
+  document.addEventListener('click',e=>{if(d.open&&!d.contains(e.target))d.removeAttribute('open')});
+})();
 view();insets();layout();
 try{const ro=new ResizeObserver(()=>layout());ro.observe(rc.parentElement);ro.observe(sc.parentElement)}catch(e){}
 if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{})}
