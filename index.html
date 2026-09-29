@@ -77,7 +77,7 @@ body{padding-left:var(--pl);padding-right:var(--pr);display:flex;flex-direction:
     <div class="bar"><button id="rst">Zurücksetzen</button><button id="cal">Auf 94 dB</button></div>
     <div class="bar"><button id="exp">Exportieren</button></div>
     <h2 style="margin-top:0">Alarmschwelle</h2>
-    <div class="bar" style="flex-wrap:wrap"><input type="number" id="alarmDb" value="100" aria-label="Alarmschwelle in dB"><span class="unit">dB (LAF)</span></div>
+    <div class="bar" style="flex-wrap:wrap"><input type="number" id="alarmDb" value="100" aria-label="Alarmschwelle in dB" oninput="try{localStorage.setItem('alarmDb',this.value)}catch(e){}"><span class="unit">dB (LAF)</span></div>
     <h2>Leq über Zeitraum</h2>
     <div class="bar" style="flex-wrap:wrap">
       <select id="pDur" aria-label="Zeitraum"><option value="900">15 min</option><option value="1800">30 min</option><option value="3600">60 min</option><option value="0">Unbegrenzt</option></select>
@@ -114,6 +114,7 @@ let snapLev=null,nCtx,nNode,nGain,noiseOn=false;
 let pEsum=0,pEt=0,pRunning=false,pDur=900;
 let N=3,wt='A',tc='F',hold=true,cal=100,calibrated=false;
 try{const c=localStorage.getItem('cal');if(c){cal=+c;calibrated=true}}catch(e){}
+try{const ad=localStorage.getItem('alarmDb');if(ad)$('alarmDb').value=ad}catch(e){}
 let bands=[],lev=[],pkv=[],pkt=[],wA,wC,sm=1e-12,eSum=0,eT=0,mx=-999,pkm=-999,x0=[],x1=[];
 const FMIN=20,FMAX=20000,DMIN=-100,DMAX=0,LR=Math.log(FMAX/FMIN),CORR=10*Math.log10(2/0.3046);
 const dpr=Math.min(window.devicePixelRatio||1,2);
