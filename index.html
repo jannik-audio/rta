@@ -39,6 +39,15 @@ canvas{display:block;width:100%}
 h2{font:500 14px Barlow,sans-serif;color:var(--dim);margin:14px 2px 6px}
 input[type=number]{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font:inherit;font-size:16px;min-height:44px;width:76px}
 input[type=range]{accent-color:var(--mid);width:100px;vertical-align:middle}
+details.tools{border:1px solid var(--line);border-radius:6px;margin-top:14px;background:var(--panel)}
+details.tools summary{list-style:none;cursor:pointer;padding:10px 12px;font:500 15px Barlow,sans-serif;color:var(--dim);display:flex;align-items:center;justify-content:space-between;min-height:24px}
+details.tools summary::-webkit-details-marker{display:none}
+details.tools summary::after{content:'▸';font-size:12px;transition:transform .15s}
+details.tools[open] summary::after{transform:rotate(90deg)}
+details.tools summary:focus-visible{outline:2px solid var(--mid);outline-offset:-2px}
+details.tools .inner{padding:0 12px 12px}
+details.tools .bar{margin:0 0 10px!important}
+details.tools .bar:last-child{margin-bottom:0!important}
 #alarmState{min-height:1.2em;font-size:13px;font-weight:500}
 #alarmState.hit{color:var(--hi)}
 .sub2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}
@@ -79,9 +88,11 @@ body{padding-left:var(--pl);padding-right:var(--pr);display:flex;flex-direction:
       <div><b id="peak">--</b><span>Peak</span></div>
       <div><b id="fs">--</b><span>dBFS</span></div>
     </div>
-    <div class="bar" style="margin:14px 0 0"><button id="rst">Zurücksetzen</button><button id="cal">Auf 94 dB</button></div>
-    <div class="bar" style="margin:10px 0 0"><button id="exp">Exportieren</button></div>
-    <div class="bar" style="margin:14px 0 0"><span class="unit">Felder:</span><div class="grp" id="fields"><button data-v="alarm">Alarm</button><button data-v="leq">Leq-Log</button></div></div>
+    <details class="tools"><summary>Werkzeuge</summary><div class="inner">
+      <div class="bar"><button id="rst">Zurücksetzen</button><button id="cal">Auf 94 dB</button></div>
+      <div class="bar"><button id="exp">Exportieren</button></div>
+      <div class="bar"><span class="unit">Felder:</span><div class="grp" id="fields"><button data-v="alarm">Alarm</button><button data-v="leq">Leq-Log</button></div></div>
+    </div></details>
     <div id="secAlarm" class="hide">
       <h2>Alarmschwelle</h2>
       <div class="bar" style="flex-wrap:wrap"><button id="alarmOn">Alarm an</button><input type="number" id="alarmDb" value="100" aria-label="Alarmschwelle in dB"><span class="unit">dB (LAF)</span></div>
