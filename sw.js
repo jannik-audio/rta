@@ -1,5 +1,5 @@
 // Offline-Cache für den RTA Analyzer. Bei neuer index.html diese CACHE-Nummer erhöhen.
-const CACHE = 'rta-v3';
+const CACHE = 'rta-v5';
 const FILES = ['./', './index.html', './manifest.json'];
 
 self.addEventListener('install', e => {

@@ -69,14 +69,16 @@ body{padding-left:var(--pl);padding-right:var(--pr);display:flex;flex-direction:
 <div class="bar">
   <button class="go" id="go">Messung starten</button>
   <select id="dev" aria-label="Eingang"><option value="">Standard-Eingang</option></select>
-  <div class="grp" id="res"><button data-v="3" class="on">1/3</button><button data-v="6">1/6</button><button data-v="12">1/12</button></div>
+  <div class="grp" id="res"><button data-v="6">1/6</button><button data-v="12" class="on">1/12</button><button data-v="24">1/24</button></div>
   <div class="grp" id="wt"><button data-v="A" class="on">A</button><button data-v="C">C</button><button data-v="Z">Z</button></div>
   <div class="grp" id="tc"><button data-v="F" class="on">Fast</button><button data-v="S">Slow</button></div>
   <button id="noise">Rosa Rauschen</button>
   <details class="tools"><summary>Werkzeuge</summary><div class="inner">
     <div class="bar"><button id="rst">Zurücksetzen</button><button id="cal">Auf 94 dB</button></div>
     <div class="bar"><button id="exp">Exportieren</button></div>
-    <h2 style="margin-top:0">Alarmschwelle</h2>
+    <h2 style="margin-top:0">Peak-Hold Abklingzeit</h2>
+    <div class="bar" style="flex-wrap:wrap"><input type="number" id="pkRate" value="20" min="0" step="1" aria-label="Abklingzeit in dB pro Sekunde" oninput="pkRate=Math.max(0,+this.value||0);try{localStorage.setItem('pkRate',this.value)}catch(e){}"><span class="unit">dB/s (0 = dauerhaft halten)</span></div>
+    <h2>Alarmschwelle</h2>
     <div class="bar" style="flex-wrap:wrap"><input type="number" id="alarmDb" value="100" aria-label="Alarmschwelle in dB" oninput="try{localStorage.setItem('alarmDb',this.value)}catch(e){}"><span class="unit">dB (LAF)</span></div>
     <h2>Leq über Zeitraum</h2>
     <div class="bar" style="flex-wrap:wrap">
@@ -100,7 +102,7 @@ body{padding-left:var(--pl);padding-right:var(--pr);display:flex;flex-direction:
     </div>
   </div>
   <div class="plot" id="secRta"><canvas id="rta"></canvas>
-    <div class="rta-controls"><button id="hold" class="on">Peak-Hold</button><button id="snap">Snapshot</button></div>
+    <div class="rta-controls"><button id="hold" class="on">Peak-Hold</button><button id="pkReset">Peak-Reset</button><button id="snap">Snapshot</button></div>
   </div>
   <div class="plot" id="secSp"><canvas id="sp"></canvas><canvas id="gr" style="position:absolute;left:0;top:0;pointer-events:none"></canvas></div>
 </div>
@@ -112,10 +114,11 @@ const rc=$('rta'),rx=rc.getContext('2d'),sc=$('sp'),sx=sc.getContext('2d',{willR
 let ctx,an,stream,fb,tb,binHz,running=false,last=0,frame=0,wl;
 let snapLev=null,nCtx,nNode,nGain,noiseOn=false;
 let pEsum=0,pEt=0,pRunning=false,pDur=900;
-let N=3,wt='A',tc='F',hold=true,cal=100,calibrated=false;
+let N=12,wt='A',tc='F',hold=true,cal=100,calibrated=false;
 try{const c=localStorage.getItem('cal');if(c){cal=+c;calibrated=true}}catch(e){}
 try{const ad=localStorage.getItem('alarmDb');if(ad)$('alarmDb').value=ad}catch(e){}
-let bands=[],lev=[],pkv=[],pkt=[],wA,wC,sm=1e-12,eSum=0,eT=0,mx=-999,pkm=-999,x0=[],x1=[];
+try{const pr=localStorage.getItem('pkRate');if(pr!==null){$('pkRate').value=pr;pkRate=Math.max(0,+pr||0)}}catch(e){}
+let bands=[],lev=[],pkv=[],wA,wC,sm=1e-12,eSum=0,eT=0,mx=-999,pkm=-999,x0=[],x1=[],pkRate=20;
 const FMIN=20,FMAX=20000,DMIN=-100,DMAX=0,LR=Math.log(FMAX/FMIN),CORR=10*Math.log10(2/0.3046);
 const dpr=Math.min(window.devicePixelRatio||1,2);
 const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -174,7 +177,7 @@ function mapX(){
 function build(){
   bands=[];const r=Math.pow(2,1/N);
   for(let c=1000*Math.pow(2,Math.ceil(Math.log2(FMIN/1000)*N)/N);c<=FMAX*1.001;c*=r){bands.push({c,lo:c/Math.pow(r,.5),hi:c*Math.pow(r,.5)})}
-  lev=bands.map(()=>-200);pkv=bands.map(()=>-200);pkt=bands.map(()=>0);snapLev=null;$('snap').classList.remove('on');
+  lev=bands.map(()=>-200);pkv=bands.map(()=>-200);snapLev=null;$('snap').classList.remove('on');
 }
 function weights(){
   wA=new Float32Array(fb.length);wC=new Float32Array(fb.length);
@@ -228,7 +231,7 @@ function loop(t){
     if(i1<i0)v=fb[Math.min(Math.round(b.c/binHz),fb.length-1)]+CORR;
     else{let q=0;for(let i=i0;i<=i1;i++)q+=Math.pow(10,fb[i]/10);v=10*Math.log10(q)+CORR}
     lev[k]=Math.max(v,lev[k]-30*dt);
-    if(lev[k]>=pkv[k]){pkv[k]=lev[k];pkt[k]=t}else if(t-pkt[k]>1500)pkv[k]-=20*dt;
+    if(lev[k]>=pkv[k])pkv[k]=lev[k];else if(pkRate>0)pkv[k]=Math.max(lev[k],pkv[k]-pkRate*dt);
   });
   if(vis.rta)drawRta();
   if(vis.sp&&frame++%2===0)drawSpec();
@@ -266,6 +269,7 @@ $('cal').onclick=()=>{if(!running){$('msg').textContent='Zum Kalibrieren zuerst 
   $('msg').textContent='Kalibriert: 94 dB entspricht dem aktuellen Eingangspegel.'};
 
 // Snapshot
+$('pkReset').onclick=()=>{if(bands.length)pkv=bands.map(()=>-200)};
 $('snap').onclick=()=>{
   if(snapLev){snapLev=null;$('snap').classList.remove('on');return}
   if(!bands.length){$('msg').textContent='Zuerst Messung starten, dann Snapshot aufnehmen.';return}
